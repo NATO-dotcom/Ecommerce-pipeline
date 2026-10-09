@@ -1,6 +1,7 @@
 from spark_session import get_spark_session
 import sys
 from pyspark.sql.functions import *
+from pyspark.sql.window import *
 
 #Example of a fact table implemented in the Gold layer following the Kimball architecture for D.M
 
@@ -57,6 +58,63 @@ def build_seller_performance(spark):
     seller_df.write.mode("overwrite").parquet("data/gold/seller_performance/")
     print("Seller performance table built and written to Gold.")
     
+    
+    
+
+def build_customer_orders_ranked(spark):
+    orders_df = spark.read.parquet("data/silver/orders/")
+    customers_df = spark.read.parquet("data/silver/customers/")
+    items_df = spark.read.parquet("data/silver/items/")
+
+    # 1. Calculate total spend per order first
+    order_spend_df = items_df.groupBy("order_id").agg(
+        round(sum("price"), 2).alias("order_total_price")
+    )
+
+    # 2. Join orders with customer_unique_id (tracks actual repeat humans) and spend
+    df = orders_df.join(customers_df, on="customer_id", how="inner") \
+                  .join(order_spend_df, on="order_id", how="inner") \
+                  .filter(col("is_delivered") == True)
+
+    # 3. Define the Window: Group by unique customer, order chronologically
+    customer_window = Window.partitionBy("customer_unique_id").orderBy(col("order_purchase_timestamp").asc())
+
+    # 4. Apply row_number() over the window to rank their 1st, 2nd, 3rd order
+    ranked_df = df.withColumn("order_sequence_rank", row_number().over(customer_window)) \
+                    .select(
+                        "customer_unique_id",
+                        "order_id",
+                        "order_purchase_timestamp",
+                        "order_total_price",
+                        "order_sequence_rank"
+                    )
+
+    ranked_df.write.mode("overwrite").parquet("data/gold/customer_orders_ranked/")
+    print("Customer orders ranked table (Window) built and written to Gold.")
+
+
+def build_monthly_cumulative_revenue(spark):
+    daily_rev_df = spark.read.parquet("data/gold/daily_revenue/")
+
+    # 1. Aggregate daily revenue into monthly buckets (YYYY-MM)
+    monthly_df = daily_rev_df.withColumn("year_month", date_format(col("date"), "yyyy-MM")) \
+        .groupBy("year_month") \
+        .agg(round(sum("total_item_revenue"), 2).alias("monthly_revenue"))
+
+    # 2. Define an cumulative Window ordered by month from the beginning of time to current row
+    cumulative_window = Window.orderBy("year_month") \
+                              .rowsBetween(Window.unboundedPreceding, Window.currentRow)
+
+    # 3. Calculate running total
+    cum_rev_df = monthly_df.withColumn(
+        "cumulative_revenue",
+        round(sum("monthly_revenue").over(cumulative_window), 2)
+    ).orderBy("year_month")
+
+    cum_rev_df.write.mode("overwrite").parquet("data/gold/monthly_cumulative_revenue/")
+    print("Monthly cumulative revenue table (Window) built and written to Gold.")
+    
+    
 
 def run_quality_checks(spark):
     print("\n--- Running Data Quality Checks ---")
@@ -100,4 +158,6 @@ if __name__ == "__main__":
     spark = get_spark_session("GoldTransform")
     build_daily_revenue(spark)
     build_seller_performance(spark)
+    build_customer_orders_ranked(spark)
+    build_monthly_cumulative_revenue(spark)
     run_quality_checks(spark)

@@ -7,7 +7,9 @@ from clean import (
     clean_products, clean_payments, clean_sellers, clean_geolocation
 )
 from transform import (
-    build_daily_revenue, build_seller_performance, run_quality_checks
+    build_daily_revenue, build_seller_performance, 
+    build_customer_orders_ranked, build_monthly_cumulative_revenue,
+    run_quality_checks
 )
 
 def run_pipeline():
@@ -43,6 +45,8 @@ def run_pipeline():
         print("\n[Stage 3/4] Building Gold Analytical Tables...")
         build_daily_revenue(spark)
         build_seller_performance(spark)
+        build_customer_orders_ranked(spark)
+        build_monthly_cumulative_revenue(spark)
         print(f"✅ Gold completed in {time.time() - t0:.2f}s")
 
         # --- STAGE 4: QUALITY CHECKS ---
