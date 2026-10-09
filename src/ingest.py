@@ -1,8 +1,9 @@
 from spark_session import get_spark_session
 from schemas import *
 
-def ingest_bronze():
-    spark = get_spark_session("BronzeIngestion")
+def ingest_bronze(spark=None):
+    if spark is None:
+        spark = get_spark_session("BronzeIngestion")
     
     # Orders
     spark.read.csv("data/raw/olist_orders_dataset.csv", header=True, schema=orders_schema) \
