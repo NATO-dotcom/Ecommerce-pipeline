@@ -42,7 +42,7 @@ def build_seller_performance(spark):
     # Inner join items and orders to verify delivery status
     # Left join reviews because some orders might not have a review yet
     df = items_df.join(orders_df, on="order_id", how="inner") \
-                 .join(reviews_df, on="order_id", how="left")
+                .join(reviews_df, on="order_id", how="left")
     
     # 3. Filter for successfully completed sales
     df = df.filter(col("is_delivered") == True)
@@ -73,8 +73,8 @@ def build_customer_orders_ranked(spark):
 
     # 2. Join orders with customer_unique_id (tracks actual repeat humans) and spend
     df = orders_df.join(customers_df, on="customer_id", how="inner") \
-                  .join(order_spend_df, on="order_id", how="inner") \
-                  .filter(col("is_delivered") == True)
+                .join(order_spend_df, on="order_id", how="inner") \
+                .filter(col("is_delivered") == True)
 
     # 3. Define the Window: Group by unique customer, order chronologically
     customer_window = Window.partitionBy("customer_unique_id").orderBy(col("order_purchase_timestamp").asc())
@@ -103,7 +103,7 @@ def build_monthly_cumulative_revenue(spark):
 
     # 2. Define an cumulative Window ordered by month from the beginning of time to current row
     cumulative_window = Window.orderBy("year_month") \
-                              .rowsBetween(Window.unboundedPreceding, Window.currentRow)
+                        .rowsBetween(Window.unboundedPreceding, Window.currentRow)
 
     # 3. Calculate running total
     cum_rev_df = monthly_df.withColumn(
