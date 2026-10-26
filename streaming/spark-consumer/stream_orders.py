@@ -62,6 +62,18 @@ def main():
         .format("console") \
         .option("truncate", "false") \
         .start()
+    
+    def write_batch_to_parquet(batch_df, batch_id):
+        print(f"Writing Batch {batch_id} to Parquet...")
+        batch_df.coalesce(1).write \
+            .mode("overwrite") \
+            .parquet("data/streaming/hourly_revenue")
+
+    # Write the stream using foreachBatch
+    query = revenue_by_state_df.writeStream \
+        .outputMode("complete") \
+        .foreachBatch(write_batch_to_parquet) \
+        .start()
 
     print("Listening for messages...")
     query.awaitTermination()
