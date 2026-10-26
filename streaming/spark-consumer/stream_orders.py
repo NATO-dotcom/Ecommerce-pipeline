@@ -29,16 +29,32 @@ def main():
         .option("startingOffsets", "earliest") \
         .load()
 
-    # Parse the binary 'value' column into structured columns
+    # # Parse the binary 'value' column into structured columns
+    # parsed_df = raw_df \
+    #     .selectExpr("CAST(value AS STRING)") \
+    #     .select(F.from_json(F.col("value"), event_schema).alias("data")) \
+    #     .select("data.*")
+    
+    # # REAL-TIME AGGREGATION: Group by state and sum the revenue
+    # revenue_by_state_df = parsed_df \
+    #     .groupBy('customer_state') \
+    #     .agg(F.sum('total_price').alias('cumulative_revenue'))
+    
+    # Parse the JSON and cast the timestamp string to a true Spark Timestamp
     parsed_df = raw_df \
         .selectExpr("CAST(value AS STRING)") \
         .select(F.from_json(F.col("value"), event_schema).alias("data")) \
-        .select("data.*")
+        .select("data.*") \
+        .withColumn("purchase_timestamp", F.to_timestamp("purchase_timestamp"))
     
-    # REAL-TIME AGGREGATION: Group by state and sum the revenue
+    # REAL-TIME AGGREGATION: Windowing and Watermarking
     revenue_by_state_df = parsed_df \
-        .groupBy('customer_state') \
-        .agg(F.sum('total_price').alias('cumulative_revenue'))
+        .withWatermark("purchase_timestamp", "10 minutes") \
+        .groupBy(
+            F.window("purchase_timestamp", "1 hour"),
+            "customer_state"
+        ) \
+        .agg(F.sum("total_price").alias("hourly_revenue"))
 
     # Write the stream to the console for testing
     query = revenue_by_state_df.writeStream \
