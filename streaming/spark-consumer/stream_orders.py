@@ -69,10 +69,10 @@ def main():
             .mode("overwrite") \
             .parquet("data/streaming/hourly_revenue")
 
-    # Write the stream using foreachBatch
     query = revenue_by_state_df.writeStream \
         .outputMode("complete") \
         .foreachBatch(write_batch_to_parquet) \
+        .option("checkpointLocation", "data/streaming/checkpoints") \
         .start()
 
     print("Listening for messages...")
