@@ -4,3 +4,16 @@ __pycache__/
 .ipynb_checkpoints/
 logs/
 src/
+config/airflow.cfg
+# Environments & Secrets
+.env
+.venv/
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+build/
+dist/
+wheels/
+*.egg-info
